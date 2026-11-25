@@ -486,7 +486,6 @@ class ingester {
               `DELETE FROM edges WHERE from_id = $1 OR to_id = $1`,
               [modId],
             );
-            await client.query(`DELETE FROM modules WHERE id = $1`, [modId]);
           }
         }
       }

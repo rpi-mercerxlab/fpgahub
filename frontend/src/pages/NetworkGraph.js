@@ -251,7 +251,7 @@ export const NetworkGraph = () => {
         style={{
           width: "100%",
           height: "calc(100vh - 8vh)",
-          background: "linear-gradient(135deg, #0d0302 0%, #1a0703 100%)",
+          background: "linear-gradient(135deg, #d3d6d5 0%, #ece1e2 100%)",
           position: "relative",
           overflow: "hidden",
         }}
