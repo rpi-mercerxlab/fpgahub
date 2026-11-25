@@ -1,155 +1,81 @@
-/*
 const express = require("express");
 const router = express.Router();
-
 const pool = require("./db");
-router.use(express.json());
-
 const minioClient = require("./minio");
 
+router.use(express.json());
+
 router.get("/commits", async (req, res) => {
-	const id = req.query.id;
+  const name = req.query.id;
+  if (typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "Missing module id." });
+  }
 
-	try {
-		const commits = await pool.query(
-			`SELECT DISTINCT c.*
-        FROM commits c
-        JOIN files f
-        ON f.hash = ANY(c.hashes)
-        WHERE $1 = ANY(f.modules);`,
-			[id],
-		);
-
-		res.json(commits.rows);
-	} catch (err) {
-		console.log(err);
-	}
-});
-
-router.get("/mymodules", async (req, res) => {
-	const userUUID = req.uuid;
-	console.log(userUUID);
-	try {
-		const modules = await pool.query(
-			`SELECT DISTINCT unnest(f.modules) AS module
-			 FROM commits c
-			 JOIN files f
-			   ON f.hash = ANY(c.hashes)
-			 WHERE c.commit_by = $1`,
-			[userUUID],
-		);
-
-		res.json(modules.rows.map((r) => r.module));
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: "Internal Server Error" });
-	}
+  try {
+    const commits = await pool.query(
+      `SELECT DISTINCT c.id AS commit_hash, c.timestamp, c.commit_by,
+              (c.id = m.last_touched_commit_hash) AS is_current
+       FROM modules m
+       JOIN files current_file ON current_file.id = m.file_id
+       JOIN files version_file ON version_file.filename = current_file.filename
+       JOIN commits c ON c.id = version_file.hash
+       WHERE m.name = $1
+       ORDER BY is_current DESC, c.timestamp DESC, c.id DESC`,
+      [name],
+    );
+    res.json(commits.rows);
+  } catch (err) {
+    console.error("Error fetching module commits:", err);
+    res.status(500).json({ error: "Failed to fetch module commits." });
+  }
 });
 
 router.get("/module", async (req, res) => {
-	const { name, commit } = req.query;
-	console.log(name, commit);
+  const { name, commit } = req.query;
+  if (
+    typeof name !== "string" || !name.trim() ||
+    typeof commit !== "string" || !commit.trim()
+  ) {
+    return res.status(400).json({ error: "Missing name or commit parameters." });
+  }
 
-	if (!name || !commit) {
-		return res.status(400).json({ error: "Missing name or commit parameters" });
-	}
+  try {
+    // files.hash stores the commit ID; files.id is the MinIO object key.
+    const files = await pool.query(
+      `SELECT version_file.id
+       FROM modules m
+       JOIN files current_file ON current_file.id = m.file_id
+       JOIN files version_file ON version_file.filename = current_file.filename
+       JOIN commits c ON c.id = version_file.hash
+       WHERE m.name = $1 AND c.id = $2
+       ORDER BY version_file.id
+       LIMIT 1`,
+      [name, commit],
+    );
 
-	try {
-		const file = await pool.query(
-			`SELECT f.stored_name
-                            FROM files f
-                            JOIN commits c ON f.hash = ANY(c.hashes)
-                            WHERE $1 = ANY(f.modules)
-                            AND c.commit_hash = $2`,
-			[name, commit],
-		);
+    if (files.rows.length === 0) {
+      return res.status(404).json({ error: "Module file not found for this commit." });
+    }
 
-		if (file.rows.length === 0) {
-			return res.status(404).json({ error: "File not found in DB" });
-		}
-
-		const objectName = file.rows[0].stored_name;
-		const bucketName = "data";
-
-		minioClient.getObject(bucketName, objectName, (err, dataStream) => {
-			if (err) {
-				console.error("MinIO Error:", err);
-				return res.status(404).json({ error: "File not found in storage" });
-			}
-
-			dataStream.pipe(res);
-		});
-	} catch (err) {
-		console.error("Server Error:", err);
-		res.status(500).json({ error: "Internal Server Error" });
-	}
+    const source = await minioClient.getObject("data", files.rows[0].id);
+    source.on("error", (err) => {
+      console.error("Error streaming module source:", err);
+      if (res.headersSent) {
+        res.destroy(err);
+      } else {
+        res.status(500).json({ error: "Failed to read module source." });
+      }
+    });
+    res.type("text/plain");
+    source.pipe(res);
+  } catch (err) {
+    console.error("Error loading module source:", err);
+    if (err.code === "NoSuchKey" || err.code === "NotFound" || err.statusCode === 404) {
+      return res.status(404).json({ error: "Module file not found in storage." });
+    }
+    res.status(500).json({ error: "Failed to load module source." });
+  }
 });
-
-router.get("/search", async (req, res) => {
-	const { q } = req.query;
-
-	if (!q || q.trim().length === 0) {
-		return res.json([]);
-	}
-
-	const query = q.trim();
-
-	try {
-		const result = await pool.query(
-			`SELECT module FROM (
-			   SELECT DISTINCT module,
-			     CASE WHEN LOWER(module) = LOWER($1) THEN 3
-			          WHEN module ILIKE $1 || '%' THEN 2
-			          ELSE 1 END AS rank
-			   FROM (SELECT unnest(modules) AS module FROM files) t
-			   WHERE module ILIKE '%' || $1 || '%'
-			 ) ranked
-			 ORDER BY rank DESC, module ASC
-			 LIMIT 20`,
-			[query],
-		);
-
-		res.json(result.rows.map((r) => r.module));
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: "Internal Server Error" });
-	}
-});
-
-router.get("/graph", async (req, res) => {
-	try {
-		const nodesResult = await pool.query(
-			`SELECT DISTINCT module FROM (
-			   SELECT unnest(modules) AS module FROM files
-			 ) t`,
-		);
-
-		const edgesResult = await pool.query(
-			`SELECT parent_module, child_module FROM edges`,
-		);
-
-		const nodes = nodesResult.rows.map((r) => ({ id: r.module }));
-		const links = edgesResult.rows.map((r) => ({
-			source: r.parent_module,
-			target: r.child_module,
-		}));
-
-		res.json({ nodes, links });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: "Internal Server Error" });
-	}
-});
-
-module.exports = router;
-*/
-
-const express = require("express");
-const router = express.Router();
-const pool = require("./db");
-const minioClient = require("./minio");
-
-router.use(express.json());
 
 // 1. MODERNIZED GRAPH ENDPOINT
 router.get("/graph", async (req, res) => {
@@ -222,12 +148,23 @@ router.get("/search", async (req, res) => {
 router.get("/mymodules", async (req, res) => {
   const userUUID = req.uuid;
   try {
-    // Find modules touched by commits authored by this user
+    // Keep modules listed after another user changes their latest version.
     const modules = await pool.query(
-      `SELECT DISTINCT m.name 
+      `SELECT m.name
        FROM modules m
-       JOIN commits c ON m.last_touched_commit_hash = c.id
-       WHERE c.commit_by = $1`,
+       WHERE EXISTS (
+         SELECT 1 FROM commits c
+         WHERE c.commit_by = $1
+           AND (
+             c.id = m.last_touched_commit_hash
+             OR EXISTS (
+               SELECT 1 FROM edit_actions a
+               WHERE a.commit_id = c.id
+                 AND (a.old_module = m.name OR a.new_module = m.name)
+             )
+           )
+       )
+       ORDER BY m.name`,
       [userUUID],
     );
 

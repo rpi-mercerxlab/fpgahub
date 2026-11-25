@@ -26,15 +26,23 @@ router.get("/commits", async (req, res) => {
 router.post("/push", async (req, res) => {
   try {
     const commitsArray = req.body;
+    if (!Array.isArray(commitsArray) || commitsArray.length === 0) {
+      return res.status(400).json({ error: "Expected a non-empty array of commits." });
+    }
 
     const trans_id = uuidv4();
 
     for (const commitPayload of commitsArray) {
-      await ingesterInstance.ingest(commitPayload, trans_id);
+      await ingesterInstance.ingest(commitPayload, trans_id, req.uuid);
     }
 
     const needed_files = await ingesterInstance.needed_files(trans_id);
-    console.log(needed_files);
+    if (needed_files.length === 0) {
+      const successful = await ingesterInstance.finalizeTransaction(trans_id);
+      if (!successful) {
+        return res.status(500).json({ error: "Failed to finalize commits." });
+      }
+    }
 
     res.status(200).json({
       id: trans_id,

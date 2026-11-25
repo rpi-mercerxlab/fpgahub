@@ -14,7 +14,6 @@ const authRouter = require("./authroutes.js");
 const protectRoute = require("./middleware.js");
 const fileTracking = require("./filetracking.js");
 const frontendAPI = require("./frontend_services.js");
-const { setupYjsWebSocketServer } = require("./yjs-server.js");
 
 // Create shared session store
 const sessionStore = new MemoryStore({
@@ -51,10 +50,9 @@ app.use("/api", protectRoute, frontendAPI);
 
 app.use("/transactions", protectRoute, transactions);
 
-// Create HTTP server and setup WebSocket for Yjs
+// Create HTTP server
 const server = http.createServer(app);
-setupYjsWebSocketServer(server, sessionStore);
 
 server.listen(port, () => {
-  console.log(`Server listening on port ${port} with WebSocket support`);
+  console.log(`Server listening on port ${port}`);
 });

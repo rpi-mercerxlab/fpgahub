@@ -68,7 +68,10 @@ class ingester {
     this.transactions = new Map();
   }
 
-  async ingest(commitPayload, id) {
+  async ingest(commitPayload, id, userUUID) {
+    if (!userUUID) {
+      throw new Error("Authenticated uploader is required for commit ingestion.");
+    }
     const commitId = commitPayload.new_commit;
     const parentCommit = commitPayload.parent_commit;
 
@@ -154,9 +157,12 @@ class ingester {
     const tx = this.transactions.get(id);
 
     if (!tx) {
-      this.transactions.set(id, { commits: [commitInfo] });
+      this.transactions.set(id, { commits: [commitInfo], commit_by: userUUID });
     } else {
-      this.transactions.get(id).commits.push(commitInfo);
+      if (tx.commit_by !== userUUID) {
+        throw new Error("Transaction belongs to another user.");
+      }
+      tx.commits.push(commitInfo);
     }
   }
 
@@ -263,16 +269,17 @@ class ingester {
             [fileObj.stored_name, fileObj.file, fileObj.hash],
           );
 
-          fileMap.set(`${fileObj.file}_${fileObj.hash}`, fileObj.stored_name);
-          fileMap.set(fileObj.file, fileObj.stored_name);
+          fileMap.set(JSON.stringify([fileObj.file, fileObj.hash]), fileObj.stored_name);
         }
       }
 
       for (const commit of tx.commits) {
         await client.query(
-          `INSERT INTO commits (id, parent_commit, timestamp) VALUES ($1, $2, NOW())
-           ON CONFLICT (id) DO NOTHING`,
-          [commit.id, commit.parent_commit || null],
+          `INSERT INTO commits (id, parent_commit, timestamp, commit_by)
+           VALUES ($1, $2, NOW(), $3)
+           ON CONFLICT (id) DO UPDATE
+           SET commit_by = COALESCE(commits.commit_by, EXCLUDED.commit_by)`,
+          [commit.id, commit.parent_commit || null, tx.commit_by],
         );
 
         for (const edit_action of commit.edit_script) {
@@ -504,11 +511,9 @@ class ingester {
   }
 
   async getFileUuid(client, fileMap, filename, commitHash) {
-    if (fileMap.has(`${filename}_${commitHash}`)) {
-      return fileMap.get(`${filename}_${commitHash}`);
-    }
-    if (fileMap.has(filename)) {
-      return fileMap.get(filename);
+    const key = JSON.stringify([filename, commitHash]);
+    if (fileMap.has(key)) {
+      return fileMap.get(key);
     }
 
     const resExact = await client.query(
@@ -516,18 +521,11 @@ class ingester {
       [filename, commitHash],
     );
     if (resExact.rows.length > 0) {
+      fileMap.set(key, resExact.rows[0].id);
       return resExact.rows[0].id;
     }
 
-    const resAny = await client.query(
-      `SELECT id FROM files WHERE filename = $1 LIMIT 1`,
-      [filename],
-    );
-    if (resAny.rows.length > 0) {
-      return resAny.rows[0].id;
-    }
-
-    return null;
+    throw new Error(`Missing source snapshot for ${filename} at commit ${commitHash}.`);
   }
 }
 
