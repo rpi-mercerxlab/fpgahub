@@ -2,7 +2,10 @@
 #include "../include/auth.h"
 #include "../include/cfg.h"
 #include "../include/colors.h"
+#include "../include/graph_differencing_engine.h"
+#include "../include/slang_wrapper.h"
 #include "../include/utils.h"
+
 #include <iostream>
 
 void registerUser_route(Authenticator &auth) {
@@ -57,30 +60,38 @@ void logoutUser_route(Authenticator &auth) {
   auth.storeAuthToken(empty_token);
 }
 
-void status_route(FileTracker &fileTracker) {
-  std::vector<FileTracker::changeInfo> changes = fileTracker.file_status();
+void print_edit_script(std::string &root_module) {
+  slang_wrapper slang_wrap;
+  slang_wrap.load_to_FPGAHub_format();
 
-  if (changes.empty()) {
-    std::cout << GREEN << "No changes detected." << RESET << std::endl;
-    return;
-  }
+  graph_differencing_engine gde;
 
-  for (const auto &change : changes) {
-    if (change.change_type == "new") {
-      std::cout << GREEN << "Added: " << change.filename << RESET << std::endl;
-    } else if (change.change_type == "modified") {
-      std::cout << YELLOW << "Modified: " << change.filename << RESET
-                << std::endl;
-    } else if (change.change_type == "deleted") {
-      std::cout << RED << "Deleted: " << change.filename << RESET << std::endl;
-    }
-  }
+  graph *graph = slang_wrap.retrieve_graph();
+
+  gde.load_current_graph(graph);
+  gde.print_edit_script(root_module);
+  delete graph;
 }
 
-void commit_route(FileTracker &fileTracker, Authenticator &auth,
-                  ModuleTreeBuilder &moduleTreeBuilder) {
+void commit_edit_script(std::string &root_module) {
+  slang_wrapper slang_wrap;
+  slang_wrap.load_to_FPGAHub_format();
 
-  // module tracking
+  graph_differencing_engine gde;
 
-  fileTracker.commit(auth, moduleTreeBuilder);
+  graph *graph = slang_wrap.retrieve_graph();
+
+  gde.load_current_graph(graph);
+  gde.commit_edit_script(root_module);
+  delete graph;
+}
+
+void gde_push(Authenticator &auth) {
+  graph_differencing_engine gde;
+  gde.gde_push(auth);
+}
+
+void gde_pull(Authenticator &auth, std::string &root_name) {
+  graph_differencing_engine gde;
+  gde.gde_pull(auth, root_name);
 }

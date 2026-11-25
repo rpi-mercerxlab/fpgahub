@@ -1,0 +1,21 @@
+[submodule "cli/yosys"]
+	path = cli/yosys
+	url = https://github.com/YosysHQ/yosys.git
+[submodule "cli/slang"]
+	path = cli/slang
+	url = https://github.com/MikePopoloski/slang.git
+[submodule "testproj/picorv32"]
+	path = testproj/picorv32
+	url = https://github.com/YosysHQ/picorv32.git
+[submodule "testproj1/picorv32"]
+	path = testprojs/testproj1/picorv32
+	url = https://github.com/YosysHQ/picorv32.git
+[submodule "cli/tree-similarity"]
+	path = cli/tree-similarity
+	url = https://github.com/DatabaseGroup/tree-similarity.git
+[submodule "evaluation/corundum_test/corundum"]
+	path = evaluation/corundum_test/corundum
+	url = https://github.com/corundum/corundum.git
+[submodule "evaluation/open_titan/opentitan"]
+	path = evaluation/open_titan/opentitan
+	url = https://github.com/lowRISC/opentitan.git

@@ -10,35 +10,43 @@ export const ModuleTopBar = ({ name, commit, setCommit }) => {
 	const [commits, setCommits] = useState([]);
 	const [loading, setLoading] = useState(true);
 
-	const loadCommits = async () => {
-		try {
-			const response = await fetch(`${API_BASE}/api/commits?id=${name}`, {
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
-			});
-			const data = await response.json();
-
-			setCommits(data);
-
-			if (data.length > 0) {
-				const mostRecent = data.reduce((a, b) =>
-					new Date(b.timestamp) > new Date(a.timestamp) ? b : a,
-				);
-
-				setCommit(mostRecent);
-			}
-			setLoading(false);
-		} catch (error) {
-			console.error("Error fetching commits:", error);
-		}
-	};
-
 	useEffect(() => {
+		setCommits([]);
+		setCommit(null);
+		setLoading(true);
+		if (!name) {
+			setLoading(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const loadCommits = async () => {
+			try {
+				const query = new URLSearchParams({ id: name });
+				const response = await fetch(`${API_BASE}/api/commits?${query}`, {
+					credentials: "include",
+					signal: controller.signal,
+				});
+				if (!response.ok) {
+					throw new Error(`Server responded with ${response.status}`);
+				}
+				const data = await response.json();
+				if (!Array.isArray(data)) {
+					throw new Error("Invalid module commit list.");
+				}
+				if (controller.signal.aborted) return;
+				setCommits(data);
+				setCommit(data.find((c) => c.is_current) || data[0] || null);
+			} catch (error) {
+				if (controller.signal.aborted) return;
+				console.error("Error fetching commits:", error);
+			} finally {
+				if (!controller.signal.aborted) setLoading(false);
+			}
+		};
 		loadCommits();
-	}, []);
+		return () => controller.abort();
+	}, [name, setCommit]);
 
 	return (
 		<>
@@ -77,13 +85,14 @@ export const ModuleTopBar = ({ name, commit, setCommit }) => {
 						<Share1Icon height={25} width={25} />
 					</IconButton>
 					<Select.Root
+						disabled={loading || commits.length === 0}
 						value={commit ? commit.commit_hash : ""}
 						onValueChange={(value) => {
 							const selected = commits.find((c) => c.commit_hash === value);
 							if (selected) setCommit(selected);
 						}}
 					>
-						<Select.Trigger />
+						<Select.Trigger placeholder={loading ? "Loading..." : "No versions available"} />
 						<Select.Content>
 							{commits.map((c) => (
 								<Select.Item

@@ -13,29 +13,29 @@ import { Theme } from "@radix-ui/themes";
 // import { AuthProvider } from "./context/AuthContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-	<React.StrictMode>
-		<BrowserRouter>
-			{/* Wrap future providers here */}
-			{/* <AuthProvider> */}
-			<Theme
-				accentColor="orange"
-				grayColor="gray"
-				background="dark"
-				radius="large"
-				scaling="95%"
-				panelBackground="translucent"
-				appearance="dark"
-			>
-				<div
-					style={{
-						minHeight: "100vh",
-						background: "linear-gradient(0deg, #111111 0%, #DC602E 150%)",
-					}}
-				>
-					<App />
-				</div>
-			</Theme>
-			{/* </AuthProvider> */}
-		</BrowserRouter>
-	</React.StrictMode>,
+  <React.StrictMode>
+    <BrowserRouter>
+      {/* Wrap future providers here */}
+      {/* <AuthProvider> */}
+      <Theme
+        accentColor="orange"
+        grayColor="gray"
+        background="dark"
+        radius="large"
+        scaling="95%"
+        panelBackground="translucent"
+        appearance="dark"
+      >
+        <div
+          style={{
+            minHeight: "100vh",
+            background: "linear-gradient(0deg, #111111 0%, #DC602E 150%)",
+          }}
+        >
+          <App />
+        </div>
+      </Theme>
+      {/* </AuthProvider> */}
+    </BrowserRouter>
+  </React.StrictMode>,
 );

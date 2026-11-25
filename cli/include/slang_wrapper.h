@@ -1,0 +1,102 @@
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <stack>
+#include <string>
+#include <vector>
+
+#include "slang/ast/ASTVisitor.h"
+#include "slang/ast/Compilation.h"
+#include "slang/ast/Expression.h"
+#include "slang/ast/Statement.h"
+#include "slang/ast/symbols/CompilationUnitSymbols.h"
+#include "slang/ast/symbols/InstanceSymbols.h"
+#include "slang/ast/symbols/MemberSymbols.h"
+#include "slang/ast/symbols/PortSymbols.h"
+#include "slang/ast/symbols/VariableSymbols.h"
+#include "slang/diagnostics/DiagnosticEngine.h"
+#include "slang/diagnostics/TextDiagnosticClient.h"
+#include "slang/syntax/AllSyntax.h"
+#include "slang/syntax/SyntaxNode.h"
+#include "slang/syntax/SyntaxTree.h"
+#include "slang/syntax/SyntaxVisitor.h"
+#include "slang/text/SourceManager.h"
+
+#include "../include/graph.h"
+#include "../include/sha256.h"
+#include "../include/utils.h"
+
+#include <unordered_set>
+
+#ifndef SLANG_WRAPPER_H
+#define SLANG_WRAPPER_H
+
+class slang_wrapper {
+public:
+  slang_wrapper() {
+    int err = this->parse_working_directory();
+    if (err > 0) {
+      std::cerr << "Slang wrapper is not initialized properly." << std::endl;
+    }
+
+    this->FPGAHub_tree = new graph;
+    this->builder = new GraphBuilder(this->sourceManager, this->FPGAHub_tree);
+  }
+
+  void load_to_FPGAHub_format() {
+    const auto &root = this->compilation->getRoot();
+    root.visit(*(this->builder));
+  }
+
+  graph *retrieve_graph() { return this->FPGAHub_tree; }
+
+private:
+  // loads the current working directory into slang to be traversed
+  int parse_working_directory();
+
+  // used to store the syntax trees
+  slang::SourceManager sourceManager;
+  std::vector<std::shared_ptr<slang::syntax::SyntaxTree>> syntaxTrees;
+  std::unique_ptr<slang::ast::Compilation> compilation;
+
+  graph *FPGAHub_tree;
+
+  // tool to build the FPGAHub representation of the tree
+  class GraphBuilder : public slang::ast::ASTVisitor<GraphBuilder> {
+  public:
+    GraphBuilder(const slang::SourceManager &sm, graph *graph_pt)
+        : sourceManager(sm), FPGAHub_tree(graph_pt) {};
+    void handle(const slang::ast::InstanceSymbol &node);
+
+  private:
+    const slang::SourceManager &sourceManager;
+
+    std::stack<graph::module *> parent_modules;
+    graph *FPGAHub_tree;
+  };
+
+  GraphBuilder *builder;
+
+  // visitor that visits all non-module structural elements of a tree and
+  // creates a canonical hash
+  class CanonicalHashBuilder
+      : public slang::syntax::SyntaxVisitor<CanonicalHashBuilder> {
+  public:
+    bool is_sub_visitor = false;
+    std::string canonical_string = "";
+
+    void visitDefault(const slang::syntax::SyntaxNode &node);
+    void handle(const slang::syntax::SyntaxNode &node) { visitDefault(node); };
+    void handle(const slang::syntax::ModuleDeclarationSyntax &node);
+    void handle(const slang::syntax::HierarchyInstantiationSyntax &node);
+
+    std::string get_canonical_string();
+    std::string get_raw_string();
+
+  private:
+    std::vector<std::string> components;
+    std::string capture_subtree(const auto &node);
+  };
+};
+
+#endif

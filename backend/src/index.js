@@ -8,37 +8,38 @@ const cors = require("cors");
 const session = require("express-session");
 const MemoryStore = require("memorystore")(session);
 
+const transactions = require("./transactions.js");
+
 const authRouter = require("./authroutes.js");
 const protectRoute = require("./middleware.js");
 const fileTracking = require("./filetracking.js");
 const frontendAPI = require("./frontend_services.js");
-const { setupYjsWebSocketServer } = require("./yjs-server.js");
 
 // Create shared session store
 const sessionStore = new MemoryStore({
-	checkPeriod: 1000 * 60 * 60,
+  checkPeriod: 1000 * 60 * 60,
 });
 
 app.use(
-	cors({
-		origin: "http://localhost:3000",
-		credentials: true,
-	}),
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  }),
 );
 
 app.use(
-	session({
-		secret: "fake_key",
-		resave: false,
-		saveUninitialized: false,
-		cookie: {
-			httpOnly: true,
-			secure: false,
-			sameSite: "lax",
-			maxAge: 1000 * 60 * 60 * 24,
-		},
-		store: sessionStore,
-	}),
+  session({
+    secret: "fake_key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24,
+    },
+    store: sessionStore,
+  }),
 );
 
 app.use("/auth", authRouter);
@@ -47,10 +48,11 @@ app.use("/ft", fileTracking);
 
 app.use("/api", protectRoute, frontendAPI);
 
-// Create HTTP server and setup WebSocket for Yjs
+app.use("/transactions", protectRoute, transactions);
+
+// Create HTTP server
 const server = http.createServer(app);
-setupYjsWebSocketServer(server, sessionStore);
 
 server.listen(port, () => {
-	console.log(`Server listening on port ${port} with WebSocket support`);
+  console.log(`Server listening on port ${port}`);
 });

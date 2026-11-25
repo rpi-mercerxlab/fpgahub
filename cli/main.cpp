@@ -1,20 +1,18 @@
 #include "./include/CLI11.hpp"
 #include "./include/auth.h"
-#include "./include/cfg.h"
-#include "./include/filetracking.h"
-#include "./include/module_tree_builder.h"
 #include "./include/routes.h"
 #include "./include/utils.h"
+
+#include "./include/graph_differencing_engine.h"
+#include "./include/slang_wrapper.h"
+
 #include <string>
 
 int main(int argc, char **argv) {
 
   Authenticator auth;
-  ModuleTreeBuilder builder;
 
   CLI::App app{"CLI tool to interface with the VHDLhub system."};
-
-  FileTracker tracker(HIDDEN_DIR_NAME, LOG_FILE_NAME);
 
   auto registerUser =
       app.add_subcommand("register", "Register new user for an account.");
@@ -27,24 +25,30 @@ int main(int argc, char **argv) {
       app.add_subcommand("logout", "Logout and clear authentication data.");
   logoutUser->callback([&]() { logoutUser_route(auth); });
 
-  auto status = app.add_subcommand("status", "Check file change status.");
-  status->callback([&]() { status_route(tracker); });
+  std::string root_module;
 
-  auto commit = app.add_subcommand("commit", "Commit changes to the remote.");
-  commit->callback([&]() { commit_route(tracker, auth, builder); });
+  auto status =
+      app.add_subcommand("status", "Get edit script of uncommitted changes");
 
-  auto printTree = app.add_subcommand("module-tree", "Print the module tree.");
-  printTree->callback([&]() {
-    builder.buildTree();
-    builder.printTreeWrapper();
-  });
+  status->add_option("module_name", root_module, "Name of the module to diff")
+      ->required();
+  status->callback([&]() { print_edit_script(root_module); });
 
-  auto printRoots =
-      app.add_subcommand("module-roots", "Print the module roots.");
-  printRoots->callback([&]() {
-    builder.buildTree();
-    builder.printRoots();
-  });
+  auto commit = app.add_subcommand("commit", "Save changes");
+
+  commit->add_option("module_name", root_module, "Name of the module to diff")
+      ->required();
+  commit->callback([&]() { commit_edit_script(root_module); });
+
+  auto push = app.add_subcommand("push", "Push local changes");
+
+  push->callback([&]() { gde_push(auth); });
+
+  auto pull = app.add_subcommand("pull", "Pull from module");
+
+  pull->add_option("module_name", root_module, "Name of the module to pull")
+      ->required();
+  pull->callback([&]() { gde_pull(auth, root_module); });
 
   CLI11_PARSE(app, argc, argv);
 
