@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FPGAHub: VLSI Repository Version Control and IP Management Using Semantic Tree Differencing — Preprint</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+    .btn { display: inline-block; padding: 10px 18px; background: #0969da; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px; }
+    pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+    iframe { width: 100%; height: 650px; border: 1px solid #d0d7de; border-radius: 6px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Paper Title</h1>
+  <p><strong>Authors:</strong> Ryan Berube, Lauren Kelly, Shayla Sawyer Armand</p>
+  <p>
+    <a class="btn" href="preprint.pdf" target="_blank" type="application/pdf">View / Download PDF</a>
+    <a class="btn" href="https://github.com/rpi-mercerxlab/fpgahub" style="background:#24292f;">GitHub Repository</a>
+  </p>
+
+  <h2>Abstract</h2>
+  <p>Field Programmable Gate Array (FPGA) and Very-Large-Scale-Integration (VLSI) projects are often highly modular, hierarchical, and depend frequently on module reuse. Despite this, repositories of modules are often treated as flat text files, relying on line-by-line difference based tools for version control. This methodology does not always capture the structural significance of changes within a project. To bridge this gap, we introduce FPGAHub, an open-source tool for managing a repository of modules through semantic differencing. Through representing projects as Directed Acyclic Graphs (DAGs), FPGAHub maintains one central repository DAG and adapts the Gumtree Abstract Syntactic Tree (AST) differencing algorithm to generate semantic edit scripts. Through pre-processing steps to adapt this algorithm, we introduce a methodology for managing hierarchical changes across a repository. We evaluate FPGAHub against Git in compute performance and difference representation, showing practical resource usage and effective structural change representation. Ultimately, FPGAHub replaces fine grain line-by-line detail with a structural, high-level focus, aligning version control directly with hardware semantics.</p>
+
+  <h2>Citation</h2>
+  <pre>@article{berube2026FPGAHub,
+  title={FPGAHub: VLSI Repository Version Control and IP Management Using Semantic Tree Differencing},
+  author={Berube, Ryan and Kelly, Lauren and {Sawyer Armand}, Shayla},
+  year={2026},
+  url={https://rpi-mercerxlab.github.io/fpgahub/}
+}</pre>
+
+  <iframe src="preprint.pdf"></iframe>
+</body>
+</html>
